@@ -1,9 +1,10 @@
 class AmoCrmDealsApp {
-    constructor() {
+    constructor(apiClient) {
         this.deals = [];
         this.expandedDealId = null;
         this.fetchQueue = [];
         this.isFetching = false;
+        this.apiClient = apiClient;
     }
 
     init() {
@@ -11,11 +12,14 @@ class AmoCrmDealsApp {
     }
 
     async loadDeals() {
-        // TODO: Replace with actual API call
-
-        const tempDeals = this.generateTempDeals();
-        this.deals = tempDeals;
-        this.renderDealsTable();
+        try {
+            // this.deals = await this.apiClient.getDeals();
+            this.deals = this.generateTempDeals();
+            this.renderDealsTable();
+        } catch (error) {
+            console.error('Failed to load deals:', error);
+            alert('Failed to load deals. Please try again.');
+        }
     }
 
     generateTempDeals() {
@@ -135,10 +139,21 @@ class AmoCrmDealsApp {
         this.collapseDeal();
         this.expandedDealId = dealId;
 
-        const row = document.querySelector(`tr[data-deal-id="${dealId}"]`); 
-        const expandedRow = document.createElement('tr');
-        expandedRow.className = 'expanded-row';
-        expandedRow.innerHTML = `
+        const row = this.getDealRowElement(dealId); 
+        const expandedRow = this.createExpandedRowWithSpinner();
+        row.after(expandedRow);
+
+        await this.loadAndRenderDealDetails(dealId, expandedRow);
+    }
+
+    getDealRowElement(dealId) {
+        return document.querySelector(`tr[data-deal-id="${dealId}"]`);
+    }
+
+    createExpandedRowWithSpinner() {
+        const row = document.createElement('tr');
+        row.className = 'expanded-row';
+        row.innerHTML = `
             <td colspan="6">
                 <div class="d-flex justify-content-center">
                     <div class="spinner-border" role="status">
@@ -147,32 +162,72 @@ class AmoCrmDealsApp {
                 </div>
             </td>
         `;
+        return row;
+    }
 
-        row.after(expandedRow);
+    async loadAndRenderDealDetails(dealId, expandedRow) {
+        try {
+            const deal = await this.fetchDealDetails(dealId);
+            this.renderDealDetails(expandedRow, deal);
+        } catch (error) {
+            console.error('Error fetching deal details:', error);
+            this.renderErrorState(expandedRow);
+        }
+    }
 
-        // TODO: Replace with actual API call
-        setTimeout(() => {
-            const deal = this.deals.find(deal => deal.id === dealId);
-            expandedRow.innerHTML = `
-                <td colspan="9">
-                    <div class="container-fluid">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <p><strong>Название:</strong> ${deal.name}</p>
-                                <p><strong>Бюджет:</strong> ${deal.budget}</p>
-                                <p><strong>Контакт:</strong> ${deal.contact?.name || 'N/A'}</p>
-                                <p><strong>Телефон:</strong> ${deal.contact?.phone || 'N/A'}</p>
-                            </div>
-                            <div class="col-md-6 text-end">
-                                <div class="d-flex align-items-center justify-content-end">
-                                    ${this.renderStatusIndicator(deal)}
-                                </div>
+    async fetchDealDetails(dealId) {
+        // return await this.apiClient.getDetails(dealId);
+        return this.deals.find(deal => deal.id === dealId);
+    }
+
+    renderDealDetails(expandedRow, deal) {
+        expandedRow.innerHTML = `
+            <td colspan="9">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-md-6">
+                            ${this.renderDealInfo(deal)}
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <div class="d-flex align-items-center justify-content-end">
+                                ${this.renderStatusIndicator(deal)}
                             </div>
                         </div>
                     </div>
-                </td>
-            `;
-        }, 1000);
+                </div>
+            </td>
+        `;
+    }
+
+    renderDealInfo(deal) {
+        return `
+            <p><strong>Название:</strong> ${deal.name}</p>
+            <p><strong>Бюджет:</strong> ${deal.budget}</p>
+            <p><strong>Контакт:</strong> ${deal.contact?.name || 'N/A'}</p>
+            <p><strong>Телефон:</strong> ${deal.contact?.phone || 'N/A'}</p>
+        `;
+    }
+
+    renderErrorState(expandedRow) {
+        expandedRow.innerHTML = `
+            <td colspan="9">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Название:</strong> N/A</p>
+                            <p><strong>Бюджет:</strong> N/A</p>
+                            <p><strong>Контакт:</strong> N/A</p>
+                            <p><strong>Телефон:</strong> N/A</p>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <div class="d-flex align-items-center justify-content-end">
+                                ${this.createStatusSvg('red')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </td>
+        `;
     }
 
     collapseDeal() {
@@ -218,7 +273,4 @@ class AmoCrmDealsApp {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    const app = new AmoCrmDealsApp();
-    app.init();
-});
+export default AmoCrmDealsApp;
